@@ -3,45 +3,60 @@ const https = require('https');
 exports.handler = async function (event, context) {
     if (event.httpMethod !== "POST") return { statusCode: 405, body: "Method Not Allowed" };
     
-    // Diagnose: Prüfen, ob der Key überhaupt ankommt
-    const apiKey = process.env.GEMINI_API_KEY;
+    // API-Key aus Netlify holen
+    const apiKey = process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.trim() : "";
+    
     if (!apiKey) {
-        console.error("FEHLER: GEMINI_API_KEY ist in Netlify nicht gesetzt!");
         return { statusCode: 500, body: JSON.stringify({ error: "API Key fehlt" }) };
     }
 
     try {
         const { question, financialContext } = JSON.parse(event.body);
-        const systemInstruction = `Du bist Herbert. Antworte kurz und direkt. Daten: ${JSON.stringify(financialContext)}`;
+        
+        // System-Prompt für Herbert
+        const systemInstruction = `Du bist Herbert, ein genialer Finanzberater. Deine Daten: ${JSON.stringify(financialContext)}. Antworte kurz, knackig und auf Deutsch.`;
 
         const postData = JSON.stringify({
             contents: [{ role: "user", parts: [{ text: `${systemInstruction}\n\nFrage: ${question}` }] }]
         });
 
+        // Wir nutzen den stabilen Pfad für das Modell
+        const options = {
+            hostname: 'generativelanguage.googleapis.com',
+            path: `/v1beta/models/gemini-1.5-pro:generateContent?key=${apiKey}`,
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Content-Length': Buffer.byteLength(postData)
+            }
+        };
+
         return await new Promise((resolve) => {
-            const req = https.request({
-                hostname: 'generativelanguage.googleapis.com',
-                path: `/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            }, (res) => {
+            const req = https.request(options, (res) => {
                 let data = '';
                 res.on('data', (c) => data += c);
                 res.on('end', () => {
-                    console.log("Antwort von Google erhalten:", data.substring(0, 50)); // Debug-Log
-                    resolve({ statusCode: 200, body: data });
+                    try {
+                        const parsed = JSON.parse(data);
+                        if (parsed.candidates && parsed.candidates[0].content.parts[0].text) {
+                            resolve({
+                                statusCode: 200,
+                                body: JSON.stringify({ answer: parsed.candidates[0].content.parts[0].text })
+                            });
+                        } else {
+                            resolve({ statusCode: 500, body: JSON.stringify({ error: "KI Antwort unleserlich: " + data }) });
+                        }
+                    } catch (e) {
+                        resolve({ statusCode: 500, body: JSON.stringify({ error: "Parsing Fehler: " + data }) });
+                    }
                 });
             });
 
-            req.on('error', (e) => {
-                console.error("HTTPS Fehler:", e.message);
-                resolve({ statusCode: 500, body: JSON.stringify({ error: e.message }) });
-            });
+            req.on('error', (e) => resolve({ statusCode: 500, body: JSON.stringify({ error: e.message }) }));
             req.write(postData);
             req.end();
         });
     } catch (e) {
-        console.error("Haupt-Fehler:", e.message);
-        return { statusCode: 500, body: JSON.stringify({ error: e.message }) };
+        return { statusCode: 500, body: JSON.stringify({ error: "Systemfehler: " + e.message }) };
     }
 };
