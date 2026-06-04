@@ -4,47 +4,66 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MD Financials Dashboard</title>
+    
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><polygon points=%2250,5 90,25 90,75 50,95 10,75 10,25%22 fill=%22%2322c55e%22/></svg>">
+    
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
-        :root { --bg-main: #0b0b0e; --bg-card: #141417; --bg-input: #1a1a1f; --accent: #22c55e; --text-main: #e2e8f0; --text-muted: #94a3b8; }
-        body { font-family: 'Segoe UI', sans-serif; background-color: var(--bg-main); color: var(--text-main); margin: 0; display: flex; min-height: 100vh; }
-        /* (Dein bestehendes CSS bleibt hier unverändert) */
-        
+        :root {
+            --bg-main: #0b0b0e; --bg-card: #141417; --bg-input: #1a1a1f; --accent: #22c55e;
+            --accent-hover: #16a34a; --text-main: #e2e8f0; --text-muted: #94a3b8;
+            --sidebar-width: 260px; --error: #ef4444; --blue: #3b82f6; --yellow: #eab308;
+        }
+
+        body { font-family: 'Segoe UI', Roboto, sans-serif; background-color: var(--bg-main); color: var(--text-main); margin: 0; display: flex; min-height: 100vh; }
+
+        /* --- DEIN BESTEHENDES DESIGN (Auszug) --- */
+        .sidebar { width: var(--sidebar-width); background: var(--bg-card); border-right: 1px solid #232329; position: fixed; height: 100vh; }
+        .main-container-wrapper { margin-left: var(--sidebar-width); width: calc(100% - var(--sidebar-width)); padding: 40px; }
+
         /* --- NEUES DESIGN FÜR HERBERT --- */
         .chat-header {
-            color: #111;
-            background: var(--accent);
-            display: block;
-            padding: 6px 10px;
-            margin: 12px 0 6px 0;
-            border-radius: 4px;
-            font-weight: bold;
-            font-size: 0.9em;
+            color: #111; background: var(--accent); display: block; padding: 6px 10px;
+            margin: 12px 0 6px 0; border-radius: 4px; font-weight: bold; font-size: 0.9em;
         }
-        .ai-widget { position: fixed; bottom: 25px; right: 25px; width: 420px; background: var(--bg-card); border: 1px solid #334155; border-radius: 14px; box-shadow: 0 10px 30px rgba(0,0,0,0.7); z-index: 100; }
-        .ai-header { padding: 12px 15px; border-bottom: 1px solid #334155; cursor: pointer; font-weight: bold; }
+        .ai-widget { position: fixed; bottom: 25px; right: 25px; width: 420px; background: var(--bg-card); border: 1px solid #334155; border-radius: 14px; box-shadow: 0 10px 30px rgba(0,0,0,0.7); z-index: 100; overflow: hidden; }
+        .ai-header { padding: 15px; border-bottom: 1px solid #334155; cursor: pointer; font-weight: bold; background: #1c1c24; display: flex; justify-content: space-between; align-items: center; }
         .ai-body { padding: 15px; height: 380px; display: flex; flex-direction: column; }
         .ai-chat-history { flex-grow: 1; overflow-y: auto; margin-bottom: 10px; display: flex; flex-direction: column; gap: 10px; }
-        .chat-bubble { padding: 10px; border-radius: 8px; font-size: 0.85rem; line-height: 1.4; }
+        .chat-bubble { padding: 10px 14px; border-radius: 8px; font-size: 0.85rem; line-height: 1.4; max-width: 90%; }
         .chat-bubble.bot { background: var(--bg-input); align-self: flex-start; }
         .chat-bubble.user { background: #1e3a8a; align-self: flex-end; }
         .ai-input-container { display: flex; gap: 8px; }
-        .ai-input { flex-grow: 1; background: var(--bg-input); border: 1px solid #334155; color: #fff; padding: 8px; border-radius: 6px; }
-        .ai-send-btn { background: var(--accent); border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; }
+        .ai-input { flex-grow: 1; background: var(--bg-input); border: 1px solid #334155; color: #fff; padding: 10px; border-radius: 6px; }
+        .ai-send-btn { background: var(--accent); border: none; padding: 8px 15px; border-radius: 6px; cursor: pointer; color: #000; font-weight: bold; }
     </style>
 </head>
 <body>
+
+    <nav class="sidebar">
+        <div style="padding: 25px; font-weight: 700; text-align: center;">MD Financials</div>
+    </nav>
+
+    <div class="main-container-wrapper">
+        <main>
+            <h1>Dashboard</h1>
+            <p>Willkommen in deinem MD Financials Tool.</p>
+        </main>
+    </div>
+
     <div class="ai-widget" id="aiBox">
-        <div class="ai-header" onclick="toggleAI()">Herbert AI</div>
+        <div class="ai-header" onclick="toggleAI()">
+            <span>Herbert AI</span>
+            <i class="fa-solid fa-chevron-down"></i>
+        </div>
         <div class="ai-body">
             <div class="ai-chat-history" id="aiHistory">
                 <div class="chat-bubble bot">Moin! Ich bin Herbert. Was möchtest du wissen?</div>
             </div>
             <div class="ai-input-container">
-                <input type="text" class="ai-input" id="aiInputField" placeholder="Frag mich was...">
+                <input type="text" class="ai-input" id="aiInputField" placeholder="Frag mich was..." onkeypress="handleAiKey(event)">
                 <button class="ai-send-btn" onclick="submitAiQuestion()"><i class="fa-solid fa-paper-plane"></i></button>
             </div>
         </div>
@@ -60,23 +79,28 @@
             chatHistory.innerHTML += `<div class="chat-bubble user">${question}</div>`;
             inputField.value = '';
 
-            const response = await fetch('/.netlify/functions/herbert-ai', {
-                method: 'POST',
-                body: JSON.stringify({ question, financialContext: { status: "Profi" } })
-            });
+            try {
+                const response = await fetch('/.netlify/functions/herbert-ai', {
+                    method: 'POST',
+                    body: JSON.stringify({ question, financialContext: { status: "Profi" } })
+                });
 
-            const data = await response.json();
-            
-            // Die Logik für die schönen Header
-            let formattedAnswer = data.answer
-                .replace(/\*\*(.*?)\*\*/g, '<span class="chat-header">$1</span>')
-                .replace(/\n/g, '<br>');
+                const data = await response.json();
+                
+                // Logik für die schönen Header
+                let formattedAnswer = data.answer
+                    .replace(/\*\*(.*?)\*\*/g, '<span class="chat-header">$1</span>')
+                    .replace(/\n/g, '<br>');
 
-            chatHistory.innerHTML += `<div class="chat-bubble bot">${formattedAnswer}</div>`;
-            chatHistory.scrollTop = chatHistory.scrollHeight;
+                chatHistory.innerHTML += `<div class="chat-bubble bot">${formattedAnswer}</div>`;
+                chatHistory.scrollTop = chatHistory.scrollHeight;
+            } catch (error) {
+                chatHistory.innerHTML += `<div class="chat-bubble bot">Fehler bei der Verbindung zu Herbert.</div>`;
+            }
         }
 
         function handleAiKey(event) { if (event.key === 'Enter') submitAiQuestion(); }
+        function toggleAI() { /* Logik für Minimieren/Maximieren kann hier rein */ }
     </script>
 </body>
 </html>
