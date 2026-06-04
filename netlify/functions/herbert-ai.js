@@ -1,41 +1,31 @@
 const https = require('https');
 
 exports.handler = async function (event, context) {
-    // 1. Nur POST-Anfragen erlauben
-    if (event.httpMethod !== "POST") {
-        return { statusCode: 405, body: "Method Not Allowed" };
-    }
+    if (event.httpMethod !== "POST") return { statusCode: 405, body: "Method Not Allowed" };
     
-    // 2. API Key sicher laden und Leerzeichen entfernen
     const apiKey = process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.trim() : "";
-    if (!apiKey) {
-        return { statusCode: 500, body: JSON.stringify({ error: "API Key fehlt" }) };
-    }
+    if (!apiKey) return { statusCode: 500, body: JSON.stringify({ error: "API Key fehlt" }) };
 
     try {
         const { question, financialContext } = JSON.parse(event.body);
         
-        // 3. Den Prompt zusammenbauen
+        // Das ist das Daten-Format, das die "v1alpha" API für Preview-Modelle verlangt
         const postData = JSON.stringify({
-            contents: [{ 
-                parts: [{ 
-                    text: `Du bist Herbert, ein Finanzberater. Kontext: ${JSON.stringify(financialContext)}. Frage: ${question}` 
-                }] 
-            }]
+            contents: [{ role: "user", parts: [{ text: `Du bist Herbert. Kontext: ${JSON.stringify(financialContext)}. Frage: ${question}` }] }],
+            // Konfiguration für das neue Modell
+            generationConfig: {
+                thinkingConfig: { thinking_level: "HIGH" }
+            }
         });
 
-        // 4. API-Optionen mit dem spezifischen Modellnamen
         const options = {
             hostname: 'generativelanguage.googleapis.com',
-            path: `/v1beta/models/gemini-3-flash:generateContent?key=${apiKey}`,
+            // Preview-Modelle laufen meist über die v1alpha API
+            path: `/v1alpha/models/gemini-3-flash-preview:generateContent?key=${apiKey}`,
             method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Content-Length': Buffer.byteLength(postData)
-            }
+            headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(postData) }
         };
 
-        // 5. Verbindung zu Google aufbauen
         return await new Promise((resolve) => {
             const req = https.request(options, (res) => {
                 let data = '';
@@ -44,15 +34,12 @@ exports.handler = async function (event, context) {
                     try {
                         const parsed = JSON.parse(data);
                         if (parsed.candidates && parsed.candidates[0].content.parts[0].text) {
-                            resolve({ 
-                                statusCode: 200, 
-                                body: JSON.stringify({ answer: parsed.candidates[0].content.parts[0].text }) 
-                            });
+                            resolve({ statusCode: 200, body: JSON.stringify({ answer: parsed.candidates[0].content.parts[0].text }) });
                         } else {
-                            resolve({ statusCode: 500, body: JSON.stringify({ error: "Antwort-Fehler: " + data }) });
+                            resolve({ statusCode: 500, body: JSON.stringify({ error: data }) });
                         }
                     } catch (e) {
-                        resolve({ statusCode: 500, body: JSON.stringify({ error: "Parsing-Fehler" }) });
+                        resolve({ statusCode: 500, body: JSON.stringify({ error: "Parsing Fehler" }) });
                     }
                 });
             });
@@ -61,6 +48,6 @@ exports.handler = async function (event, context) {
             req.end();
         });
     } catch (e) {
-        return { statusCode: 500, body: JSON.stringify({ error: "Systemfehler: " + e.message }) };
+        return { statusCode: 500, body: JSON.stringify({ error: e.message }) };
     }
 };
